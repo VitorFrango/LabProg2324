@@ -6,32 +6,40 @@
 #define MAX_PALAVRAS 1000
 #define MAX_COMPRIMENTO_PALAVRA 100
 
-void lerTextoDoArquivo(char nomeArquivo[], char **texto) {
-    FILE *arquivo = fopen(nomeArquivo, "r");
+void lerTextoDoArquivo(const char nomeArquivo[], char **texto) {
+    FILE *arquivo = fopen(nomeArquivo, "r");  // Use the function parameter
     if (arquivo == NULL) {
-        printf("Erro ao abrir o arquivo.\n");
-        exit(1);
+        printf("Erro ao abrir o arquivo %s.\n", nomeArquivo);
+        *texto = NULL;
+        return;
     }
 
-    *texto = malloc(1);  // Inicializando com tamanho 1 para '\0'
-    **texto = '\0';      // Inicializando a string vazia
+    *texto = (char *)malloc(1);
+    if (*texto == NULL) {
+        printf("Erro ao alocar memória.\n");
+        fclose(arquivo);
+        exit(1);
+    }
+    **texto = '\0';
 
     char linha[MAX_COMPRIMENTO_PALAVRA];
     while (fgets(linha, sizeof(linha), arquivo) != NULL) {
-        *texto = (char *)realloc(*texto, (strlen(*texto) + strlen(linha) + 1));
-        if (*texto == NULL) {
+        char *temp = (char *)realloc(*texto, strlen(*texto) + strlen(linha) + 1);
+        if (temp == NULL) {
             printf("Erro ao realocar memória.\n");
+            free(*texto);
+            fclose(arquivo);
             exit(1);
         }
+        *texto = temp;
         strcat(*texto, linha);
     }
-
     fclose(arquivo);
 }
 
 void limpaTexto(char *s, char **sLimpa) {
     int i, j = 0;
-    *sLimpa = (char *)malloc((strlen(s) + 1)); 
+    *sLimpa = (char *)malloc(strlen(s) + 1); 
     if (*sLimpa == NULL) {
         printf("Erro ao alocar memória.\n");
         exit(1);
@@ -42,9 +50,7 @@ void limpaTexto(char *s, char **sLimpa) {
             (*sLimpa)[j++] = tolower(s[i]);
         }
     }
-
     (*sLimpa)[j] = '\0';
-    printf("Texto limpo: %s\n", *sLimpa);
 }
 
 int testaPalindromo(char *s) {
@@ -59,6 +65,9 @@ int testaPalindromo(char *s) {
 }
 
 void gerar_combinacoes(char **palavras, char **originais, int inicio, int fim, char *combinacao) {
+    size_t combinacaoLen = strlen(combinacao);
+    size_t spaceLeft = MAX_COMPRIMENTO_PALAVRA - combinacaoLen - 1;
+
     if (inicio == fim) {
         if (strlen(combinacao) >= 3 && testaPalindromo(combinacao)) {
             printf("Combinação encontrada: %s / Combinação original: ", combinacao);
@@ -72,13 +81,12 @@ void gerar_combinacoes(char **palavras, char **originais, int inicio, int fim, c
         return;
     }
 
-    char combinacaoAnterior[MAX_COMPRIMENTO_PALAVRA];
-    strcpy(combinacaoAnterior, combinacao);
+    if (strlen(palavras[inicio]) <= spaceLeft) {
+        strncat(combinacao, palavras[inicio], spaceLeft);
+        gerar_combinacoes(palavras, originais, inicio + 1, fim, combinacao);
+        combinacao[combinacaoLen] = '\0';
+    }
 
-    strcat(combinacao, palavras[inicio]);
-    gerar_combinacoes(palavras, originais, inicio + 1, fim, combinacao);
-
-    strcpy(combinacao, combinacaoAnterior);
     gerar_combinacoes(palavras, originais, inicio + 1, fim, combinacao);
 }
 
@@ -89,15 +97,18 @@ int main() {
     char *originais[MAX_PALAVRAS];
     int tamanho = 0;
 
-    lerTextoDoArquivo("palindromo.txt", &texto);
+    lerTextoDoArquivo("palindromos.txt", &texto);
+    if (texto == NULL) {
+        return 1;
+    }
+
     limpaTexto(texto, &textoLimpo);
-    free(texto);  // Libera a memória alocada para o texto original
+    free(texto);
 
     const char *token = strtok(textoLimpo, " ");
-
     while (token != NULL && tamanho < MAX_PALAVRAS) {
-        palavras[tamanho] = (char *)malloc((strlen(token) + 1) * sizeof(char));
-        originais[tamanho] = (char *)malloc((strlen(token) + 1) * sizeof(char));
+        palavras[tamanho] = (char *)malloc(strlen(token) + 1);
+        originais[tamanho] = (char *)malloc(strlen(token) + 1);
         if (palavras[tamanho] == NULL || originais[tamanho] == NULL) {
             printf("Erro ao alocar memória.\n");
             exit(1);
@@ -111,7 +122,6 @@ int main() {
     char combinacao[MAX_COMPRIMENTO_PALAVRA] = "";
     gerar_combinacoes(palavras, originais, 0, tamanho, combinacao);
 
-    // Liberando memória alocada
     for (int i = 0; i < tamanho; i++) {
         free(palavras[i]);
         free(originais[i]);
